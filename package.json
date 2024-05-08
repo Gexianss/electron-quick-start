@@ -4,7 +4,8 @@
   "description": "A minimal Electron application",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "package":"electron-packager . FishBucket –platform=win32 –arch=x64 –version=1.7.10–icon=icons/Mushroom.ico –asar=true –out=build –ignore=node_modules/electron-* "
   },
   "repository": "https://github.com/electron/electron-quick-start",
   "keywords": [
@@ -17,6 +18,7 @@
   "author": "GitHub",
   "license": "CC0-1.0",
   "devDependencies": {
-    "electron": "^30.0.2"
+    "electron": "^30.0.2",
+    "electron-packager": "^17.1.2"
   }
 }

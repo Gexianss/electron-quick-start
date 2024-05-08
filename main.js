@@ -2,22 +2,49 @@
 const { app, BrowserWindow } = require('electron')
 const path = require('node:path')
 
-function createWindow () {
+function createWindow() {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      devTools: true,
     }
   })
-
+  mainWindow.loadURL('http:192.168.1.188:8080')
   // and load the index.html of the app.
-  mainWindow.loadFile('index.html')
+  // mainWindow.loadFile('index.html')
 
   // Open the DevTools.
   // mainWindow.webContents.openDevTools()
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.executeJavaScript(`
+      function login() {
+        document.getElementById('account').value = 'RD016'
+        document.getElementById('password').value = 'E224949163'
+        document.getElementById('post-btn').click()
+      }
+      login()
+    `)
+  })
+
+  mainWindow.webContents.on('did-navigate', (event, url) => {
+    if (url === 'http://192.168.1.188:8080/show') {
+      mainWindow.webContents.executeJavaScript(`
+        window.location.href = 'http://192.168.1.188:8080/clock'
+        const currentDate = new Date()
+        const currentHour = currentDate.getHours()
+        const currentMinute = currentDate.getMinutes()
+        const radioInput = document.getElementsById(currentHour < 17 || (currentHour === 17 && currentMinute <= 30)) ? 'start' : 'end'
+        radioInput.checked = true
+        `)
+    }
+  })
 }
+
+
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
