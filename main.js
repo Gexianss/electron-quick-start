@@ -2,17 +2,19 @@
 const { app, BrowserWindow } = require('electron')
 const path = require('node:path')
 
+require('dotenv').config()
+
 function createWindow() {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1200,
+    height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      devTools: true,
     }
   })
   mainWindow.loadURL('http:192.168.1.188:8080')
+
   // and load the index.html of the app.
   // mainWindow.loadFile('index.html')
 
@@ -22,27 +24,90 @@ function createWindow() {
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.executeJavaScript(`
       function login() {
-        document.getElementById('account').value = 'RD016'
-        document.getElementById('password').value = 'E224949163'
+        document.getElementById('account').value = '${process.env.account}'
+        document.getElementById('password').value = '${process.env.password}'
         document.getElementById('post-btn').click()
       }
       login()
     `)
   })
 
+
   mainWindow.webContents.on('did-navigate', (event, url) => {
     if (url === 'http://192.168.1.188:8080/show') {
       mainWindow.webContents.executeJavaScript(`
-        window.location.href = 'http://192.168.1.188:8080/clock'
-        const currentDate = new Date()
-        const currentHour = currentDate.getHours()
-        const currentMinute = currentDate.getMinutes()
-        const radioInput = document.getElementsById(currentHour < 17 || (currentHour === 17 && currentMinute <= 30)) ? 'start' : 'end'
-        radioInput.checked = true
+          window.location.href = 'http://192.168.1.188:8080/clock'
         `)
     }
   })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    // 確保 URL 是你要操作的頁面
+    if (mainWindow.webContents.getURL() === 'http://192.168.1.188:8080/clock') {
+      mainWindow.webContents.executeJavaScript(`
+        const currentDate = new Date()
+        const currentHour = currentDate.getHours()
+        const currentMinute = currentDate.getMinutes()
+        const radioInputId = currentHour < 17 || (currentHour === 17 && currentMinute <= 30) ? 'start' : 'end'
+        const radioInput = document.getElementById(radioInputId)
+        if (radioInput) {
+          radioInput.checked = true
+        } else {
+          console.log('Radio input not found')
+        }
+      `)
+    }
+  })
+
+  mainWindow.webContents.on('did-navigate', (event, url) => {
+    if (url === 'http://192.168.1.188:8080/clock') {
+      mainWindow.webContents.executeJavaScript(`
+          window.location.href = 'http://192.168.1.188:8080/attend'
+        `)
+    }
+  })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    // 確保 URL 是你要操作的頁面
+    if (mainWindow.webContents.getURL() === 'http://192.168.1.188:8080/attend') {
+
+      mainWindow.webContents.executeJavaScript(`
+        const selectInput = document.getElementById('select_Options')
+        const tableElement = document.getElementById('select')
+
+          const options = selectInput.options
+          setTimeout(() => {
+            for (let i = 0; i < options.length; i++) {
+              if (options[i].value === 'RD016') {
+                options[i].selected = true
+                break
+              }
+            }
+          }, 200)
+
+          setTimeout(() => {
+              const determineButton = document.getElementById('Determine')
+              if (determineButton) {
+                determineButton.click()
+                setTimeout(() => {
+                  const lastRow = tableElement.rows[tableElement.rows.length - 1]
+                  if (lastRow) {
+                    lastRow.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' })
+                  }
+                }, 400)
+              } else {
+                console.log('Determine button not found.')
+              }
+          }, 400)
+        
+      `)
+    }
+  })
 }
+
+// setTimeout(() => {
+//   document.getElementById('post-btn').click()
+// }, 500)
 
 
 
