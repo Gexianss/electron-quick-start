@@ -62,6 +62,7 @@ function createWindow() {
           radioInput.checked = true
           setTimeout(() => {
               const postBtn = document.getElementById('post-btn')
+              postBtn.click()
           }, 300)
           setTimeout(() => {
             window.location.href = 'http://192.168.1.188:8080/attend'
