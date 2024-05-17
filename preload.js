@@ -16,3 +16,8 @@ window.addEventListener('DOMContentLoaded', () => {
     replaceText(`${type}-version`, process.versions[type])
   }
 })
+const { contextBridge, ipcRenderer } = require('electron')
+
+contextBridge.exposeInMainWorld('electron', {
+  sendCredentials: (credentials) => ipcRenderer.send('submit-credentials', credentials)
+})

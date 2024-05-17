@@ -5,3 +5,11 @@
  * `contextIsolation` is turned on. Use the contextBridge API in `preload.js`
  * to expose Node.js functionality from the main process.
  */
+const { ipcRenderer } = require('electron')
+
+document.getElementById('credentials-form').addEventListener('submit', (event) => {
+    event.preventDefault()
+    const account = document.getElementById('account').value
+    const password = document.getElementById('password').value
+    ipcRenderer.send('submit-credentials', { account, password })
+})

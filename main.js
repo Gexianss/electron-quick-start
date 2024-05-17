@@ -1,8 +1,8 @@
 // Modules to control application life and create native browser window
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('node:path')
-
-require('dotenv').config()
+const fs = require('fs')
+require('dotenv').config({ path: path.join(__dirname, '.env') })
 
 function createWindow() {
   // Create the browser window.
@@ -11,6 +11,8 @@ function createWindow() {
     height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false, // 保持安全性，不啟用 nodeIntegration
+      contextIsolation: true, // 啟用上下文隔離
     }
   })
   mainWindow.loadURL('http:192.168.1.188:8080')
@@ -24,9 +26,15 @@ function createWindow() {
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.executeJavaScript(`
       function login() {
-        document.getElementById('account').value = '${process.env.account}'
-        document.getElementById('password').value = '${process.env.password}'
-        document.getElementById('post-btn').click()
+        const accountField = document.getElementById('account')
+        const passwordField = document.getElementById('password')
+        if (accountField && passwordField) {
+          accountField.value = '${process.env.account}'
+          passwordField.value = '${process.env.password}'
+          document.getElementById('post-btn').click()
+        } else {
+          console.error('Account or password field not found')
+        }
       }
       login()
     `)
@@ -52,6 +60,12 @@ function createWindow() {
         const radioInput = document.getElementById(radioInputId)
         if (radioInput) {
           radioInput.checked = true
+          setTimeout(() => {
+              const postBtn = document.getElementById('post-btn')
+          }, 300)
+          setTimeout(() => {
+            window.location.href = 'http://192.168.1.188:8080/attend'
+          }, 800)
         } else {
           console.log('Radio input not found')
         }
@@ -59,13 +73,7 @@ function createWindow() {
     }
   })
 
-  mainWindow.webContents.on('did-navigate', (event, url) => {
-    if (url === 'http://192.168.1.188:8080/clock') {
-      mainWindow.webContents.executeJavaScript(`
-          window.location.href = 'http://192.168.1.188:8080/attend'
-        `)
-    }
-  })
+  // postBtn.click()
 
   mainWindow.webContents.on('did-finish-load', () => {
     // 確保 URL 是你要操作的頁面
@@ -78,7 +86,7 @@ function createWindow() {
           const options = selectInput.options
           setTimeout(() => {
             for (let i = 0; i < options.length; i++) {
-              if (options[i].value === 'RD016') {
+              if (options[i].value === '${process.env.account}') {
                 options[i].selected = true
                 break
               }
@@ -104,18 +112,51 @@ function createWindow() {
     }
   })
 }
+function promptForCredentials() {
+  return new Promise((resolve) => {
+    const inputWindow = new BrowserWindow({
+      width: 400,
+      height: 400,
+      modal: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        nodeIntegration: true,
+        contextIsolation: false,
+      }
+    });
 
-// setTimeout(() => {
-//   document.getElementById('post-btn').click()
-// }, 500)
+    inputWindow.loadFile('index.html')
+
+    ipcMain.once('submit-credentials', (event, { account, password }) => {
+      resolve({ account, password })
+      inputWindow.close()
+    })
+  })
+}
 
 
+function saveCredentialsToEnv(account, password) {
+  const envPath = path.join(__dirname, '.env')
+  const envContent = `account=${account}\npassword=${password}`
+  fs.writeFileSync(envPath, envContent)
+  require('dotenv').config({ path: envPath })
+}
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  createWindow()
+  if (!process.env.account || !process.env.password) {
+    promptForCredentials().then(({ account, password }) => {
+      saveCredentialsToEnv(account, password)
+      createWindow()
+    }).catch(err => {
+      console.error('Error getting credentials:', err)
+      app.quit()
+    })
+  } else {
+    createWindow()
+  }
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
