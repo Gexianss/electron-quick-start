@@ -1,11 +1,19 @@
-// Modules to control application life and create native browser window
+/**
+ * 打卡系統 Electron 應用
+ * 自動登入公司 EIP 系統並執行簽到/簽退操作
+ */
+
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('node:path')
 const fs = require('fs')
 require('dotenv').config({ path: path.join(__dirname, '.env') })
 
+/**
+ * 創建主應用窗口
+ * 載入 EIP 系統並執行自動化操作
+ */
 function createWindow() {
-  // Create the browser window.
+  // 創建瀏覽器窗口
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -15,104 +23,95 @@ function createWindow() {
       contextIsolation: true, // 啟用上下文隔離
     }
   })
-  mainWindow.loadURL('http:192.168.1.188:8080')
+  
+  // 載入 EIP 登入頁面
+  mainWindow.loadURL('https://eip.incrte.com/UOF/Login.aspx?ReturnUrl=%2fUOF')
+  
+  // 開啟開發者工具，方便調試
+  mainWindow.webContents.openDevTools()
 
-  // and load the index.html of the app.
-  // mainWindow.loadFile('index.html')
-
-  // Open the DevTools.
-  // mainWindow.webContents.openDevTools()
-
+  // 頁面加載完成後自動登入
   mainWindow.webContents.on('did-finish-load', () => {
-    mainWindow.webContents.executeJavaScript(`
-      function login() {
-        const accountField = document.getElementById('account')
-        const passwordField = document.getElementById('password')
-        if (accountField && passwordField) {
-          accountField.value = '${process.env.account}'
-          passwordField.value = '${process.env.password}'
-          document.getElementById('post-btn').click()
-        } else {
-          console.error('Account or password field not found')
+    // 執行登入操作
+    executeLogin(mainWindow);
+  })
+
+  // 檢測是否進入系統主頁，然後執行簽到/簽退操作
+  mainWindow.webContents.on('did-finish-load', () => {
+    // 確保 URL 是主頁面
+    if (mainWindow.webContents.getURL() === 'https://eip.incrte.com/UOF/') {
+      // 等待頁面完全加載後執行打卡操作
+      setTimeout(() => executePunchAction(mainWindow), 500);
+    }
+  });
+}
+
+/**
+ * 執行登入操作
+ * @param {BrowserWindow} mainWindow - 主視窗對象
+ */
+function executeLogin(mainWindow) {
+  mainWindow.webContents.executeJavaScript(`
+    function login() {
+      const accountField = document.getElementById('txtAccount')
+      const passwordField = document.getElementById('txtPwd')
+      if (accountField && passwordField) {
+        accountField.value = '${process.env.account}'
+        passwordField.value = '${process.env.password}'
+        setTimeout(() => {
+          document.getElementById('btnSubmit').click()
+        }, 100)
+      }
+    }
+    login()
+  `)
+}
+
+/**
+ * 執行打卡操作 (簽到或簽退)
+ * @param {BrowserWindow} mainWindow - 主視窗對象
+ */
+function executePunchAction(mainWindow) {
+  mainWindow.webContents.executeJavaScript(`
+    // 獲取 iframe 元素
+    const frame = document.getElementById('Frame1');
+    // if (!frame) return;
+    
+    // 訪問 iframe 的內部文檔
+    const frameDoc = frame.contentWindow.document;
+    
+    // 檢查當前簽到狀態
+    const signInElement = frameDoc.getElementById('ctl00_ContentPlaceHolder1_RadDock7563233613e94a7cb601a098edc3dbd8_C_widget_PunchGrid_ctl02_lblWork');
+    const signInStatus = signInElement ? signInElement.textContent.trim() : '';
+    
+    // 獲取所有打卡按鈕元素
+    const rtbElements = frameDoc.getElementsByClassName('rtbText');
+    
+    // 根據當前狀態決定執行簽到還是簽退
+    if (signInStatus === '' || !signInElement) {
+      // 尋找並點擊簽到按鈕
+      for (let i = 0; i < rtbElements.length; i++) {
+        if (rtbElements[i].textContent.trim() === '簽到') {
+          rtbElements[i].click();
+          break;
         }
       }
-      login()
-    `)
-  })
-
-
-  mainWindow.webContents.on('did-navigate', (event, url) => {
-    if (url === 'http://192.168.1.188:8080/show') {
-      mainWindow.webContents.executeJavaScript(`
-          window.location.href = 'http://192.168.1.188:8080/clock'
-        `)
-    }
-  })
-
-  mainWindow.webContents.on('did-finish-load', () => {
-    // 確保 URL 是你要操作的頁面
-    if (mainWindow.webContents.getURL() === 'http://192.168.1.188:8080/clock') {
-      mainWindow.webContents.executeJavaScript(`
-        const currentDate = new Date()
-        const currentHour = currentDate.getHours()
-        const currentMinute = currentDate.getMinutes()
-        const radioInputId = currentHour < 17 || (currentHour === 17 && currentMinute <= 30) ? 'start' : 'end'
-        const radioInput = document.getElementById(radioInputId)
-        if (radioInput) {
-          radioInput.checked = true
-          setTimeout(() => {
-              const postBtn = document.getElementById('post-btn')
-              postBtn.click()
-          }, 300)
-          setTimeout(() => {
-            window.location.href = 'http://192.168.1.188:8080/attend'
-          }, 800)
-        } else {
-          console.log('Radio input not found')
+    } else {
+      // 尋找並點擊簽退按鈕
+      for (let i = 0; i < rtbElements.length; i++) {
+        if (rtbElements[i].textContent.trim() === '簽退') {
+          rtbElements[i].click();
+          break;
         }
-      `)
+      }
     }
-  })
-
-  // postBtn.click()
-
-  mainWindow.webContents.on('did-finish-load', () => {
-    // 確保 URL 是你要操作的頁面
-    if (mainWindow.webContents.getURL() === 'http://192.168.1.188:8080/attend') {
-
-      mainWindow.webContents.executeJavaScript(`
-        const selectInput = document.getElementById('select_Options')
-        const tableElement = document.getElementById('select')
-
-          const options = selectInput.options
-          setTimeout(() => {
-            for (let i = 0; i < options.length; i++) {
-              if (options[i].value === '${process.env.account}') {
-                options[i].selected = true
-                break
-              }
-            }
-          }, 200)
-
-          setTimeout(() => {
-              const determineButton = document.getElementById('Determine')
-              if (determineButton) {
-                determineButton.click()
-                setTimeout(() => {
-                  const lastRow = tableElement.rows[tableElement.rows.length - 1]
-                  if (lastRow) {
-                    lastRow.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' })
-                  }
-                }, 400)
-              } else {
-                console.log('Determine button not found.')
-              }
-          }, 400)
-        
-      `)
-    }
-  })
+  `)
 }
+
+/**
+ * 顯示憑證輸入視窗
+ * @returns {Promise<Object>} 包含帳號和密碼的對象
+ */
 function promptForCredentials() {
   return new Promise((resolve) => {
     const inputWindow = new BrowserWindow({
@@ -135,7 +134,11 @@ function promptForCredentials() {
   })
 }
 
-
+/**
+ * 將帳號密碼保存到環境變數檔案
+ * @param {string} account - 使用者帳號
+ * @param {string} password - 使用者密碼
+ */
 function saveCredentialsToEnv(account, password) {
   const envPath = path.join(__dirname, '.env')
   const envContent = `account=${account}\npassword=${password}`
@@ -143,35 +146,29 @@ function saveCredentialsToEnv(account, password) {
   require('dotenv').config({ path: envPath })
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+// 應用就緒後執行
 app.whenReady().then(() => {
+  // 檢查是否已存在憑證
   if (!process.env.account || !process.env.password) {
+    // 若無憑證，先提示輸入
     promptForCredentials().then(({ account, password }) => {
       saveCredentialsToEnv(account, password)
       createWindow()
     }).catch(err => {
-      console.error('Error getting credentials:', err)
       app.quit()
     })
   } else {
+    // 若已有憑證，直接創建視窗
     createWindow()
   }
 
+  // macOS 應用程式激活時重新創建視窗
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// 所有視窗關閉時退出應用 (macOS 除外)
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit()
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
